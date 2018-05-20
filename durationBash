@@ -1,0 +1,9 @@
+#!/bin/bash
+duration=( $(ffmpeg -i "$1" 2>&1 | sed -n "s/.* Duration: \([^,]*\), start: .*/\1/p") )
+fps=( $(ffmpeg -i "$1" 2>&1 | sed -n "s/.*, \(.*\) tbr.*/\1/p") )
+hours=( $(echo $duration | cut -d":" -f1) )
+minutes=( $(echo $duration | cut -d":" -f2) )
+seconds=( $(echo $duration | cut -d":" -f3) )
+frames=( $(echo "($hours*3600+$minutes*60+$seconds)*$fps" | bc | cut -d"." -f1) )
+c=$(printf \\$(printf '%03o' $frames))
+printf $c

@@ -1,8 +1,11 @@
 package main
 
 import (
+	//	"bufio"
+	"bytes"
 	"fmt"
 	"io"
+	//	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -49,28 +52,32 @@ func upload(c echo.Context) error {
 	}
 	ss := strings.Split(path+file.Filename, ".")
 	d := strings.Split(file.Filename, ".")
+	path1080 := string(ss[0] + ".1080p.mp4")
 	path720 := string(ss[0] + ".720p.mp4")
-	path576 := string(ss[0] + ".576p.mp4")
+	path480 := string(ss[0] + ".480p.mp4")
 	path360 := string(ss[0] + ".360p.mp4")
-	path240 := string(ss[0] + ".240p.mp4")
-	path144 := string(ss[0] + ".144p.mp4")
 	previewfile := string(previewpath + s[0] + ".png")
 	SourceHeight := getResolution(path + file.Filename)
-	//fmt.Println(SourceHeight)
+	var qualities int
 	switch {
 	case SourceHeight >= 1080:
+		qualities = 4
 		fmt.Println("Will code in 4 qualities")
 	case SourceHeight >= 720:
+		qualities = 3
 		fmt.Println("Will code in 3 qualities")
 	case SourceHeight >= 480:
+		qualities = 2
 		fmt.Println("Will code in 2 qualities")
 	case SourceHeight >= 360:
+		qualities = 1
 		fmt.Println("Will code in 1 qualities")
 	default:
+		qualities = 1
 		fmt.Print("less than, Will code in 1 qualities")
 
 	}
-	go transcode(path+file.Filename, path720, path576, path360, path240, path144, previewfile)
+	go transcode(path+file.Filename, qualities, path1080, path720, path480, path360, previewfile)
 	manifest := "/video/" + d[0] + "/" + d[0] + ".,144p,240p,360p,576p,720p,.mp4.urlset/master.m3u8"
 	playlists := make(map[string]string)
 	playlists["720p"] = "/video/" + d[0] + "/" + d[0] + ".720p.mp4/index.m3u8"
@@ -93,43 +100,46 @@ func upload(c echo.Context) error {
 	}*/
 
 }
-func transcode(path string, path720 string, path576 string, path360 string, path240 string, path144 string, preview string) {
+func transcode(path string, qualities int, path1080 string, path720 string, path480 string, path360 string, preview string) {
 	fmt.Println(path, preview)
-	c720 := exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "128k", "-b:v", "2500k", "-preset:v", "veryfast", "-s", "1280x720", "-aspect", "16:9", "-f", "mp4", path720)
-	c576 := exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "128k", "-b:v", "1500k", "-preset:v", "veryfast", "-s", "720x576", "-aspect", "16:9", "-f", "mp4", path576)
-	c360 := exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "96k", "-b:v", "500k", "-preset:v", "veryfast", "-s", "480x360", "-aspect", "16:9", "-f", "mp4", path360)
-	c240 := exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "96k", "-b:v", "250k", "-preset:v", "veryfast", "-s", "320x240", "-aspect", "16:9", "-f", "mp4", path240)
-	c144 := exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "64k", "-b:v", "128k", "-preset:v", "veryfast", "-s", "192x144", "-aspect", "16:9", "-f", "mp4", path144)
-	cprev := exec.Command("ffmpeg", "-i", path, "-an", "-ss", "00:00:00", "-an", "-r", "1", "-vframes", "1", "-s", "720x576", "-aspect", "16:9", preview)
-	//crem := exec.Command("rm", "-f", path)
-	err := c720.Start()
+	var stdoutBuf /*stderrBuf*/ bytes.Buffer
+	var errStdout, errStderr error
+	c1080 := exec.Command("ffmpeg", "-y", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "384k", "-b:v", "8000k", "-preset:v", "veryfast", "-s", "1920x1080", "-aspect", "16:9", "-f", "mp4", path1080)
+	stdoutIn, _ := c1080.StdoutPipe()
+	stderrIn, _ := c1080.StderrPipe()
+	stdout := io.MultiWriter(os.Stdout, &stdoutBuf)
+	//	stderr := io.MultiWriter(os.Stderr, &stderrBuf)
+	c1080.Start()
+	go func() {
+		_, errStdout = io.Copy(stdout, stdoutIn)
+	}()
+
+	go func() {
+		//_, errStderr = io.Copy(stderr, stderrIn)
+		f, _ := os.Create("log")
+		//w := //bufio.NewWriter(f)
+		w := io.Writer(f)
+		io.Copy(w, stderrIn)
+
+	}()
+
+	err := c1080.Wait()
 	if err != nil {
-		fmt.Println("Error while transcoding yo 720p file: ", path, " ", err)
+		//fmt.Fatalf("cmd.Run() failed with %s\n", err)
 	}
-	err = c576.Start()
-	if err != nil {
-		fmt.Println("Error while transcoding yo 720p file: ", path, " ", err)
+	if errStdout != nil || errStderr != nil {
+		//fmt.Fatal("failed to capture stdout or stderr\n")
 	}
-	err = c360.Start()
-	if err != nil {
-		fmt.Println("Error while transcoding yo 720p file: ", path, " ", err)
-	}
-	err = c240.Start()
-	if err != nil {
-		fmt.Println("Error while transcoding yo 720p file: ", path, " ", err)
-	}
-	err = c144.Start()
-	if err != nil {
-		fmt.Println("Error while transcoding yo 720p file: ", path, " ", err)
-	}
-	err = cprev.Start()
-	if err != nil {
-		fmt.Println("Error while generating preview file: ", path, " ", err)
-	}
-	/*err = crem.Start()
-	if err != nil {
-		fmt.Println("Error while removing: ", path, " ", err)
-	}*/
+	//outStr, _ := string(stdoutBuf.Bytes()), string(stderrBuf.Bytes())
+	/*f, err := os.Create("log")
+	w := bufio.NewWriter(f)
+	fmt.Fprintf(w, stderrBuf.String())
+	w.Flush()*/
+	//c720, _ := exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "384k", "-b:v", "5000k", "-preset:v", "veryfast", "-s", "1280x720", "-aspect", "16:9", "-f", "mp4", path720).Output()
+	//c480, _ := exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "384k", "-b:v", "2500k", "-preset:v", "veryfast", "-s", "720x480", "-aspect", "16:9", "-f", "mp4", path480).Output()
+	//c360, _ := exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "384k", "-b:v", "1000k", "-preset:v", "veryfast", "-s", "480x360", "-aspect", "16:9", "-f", "mp4", path360).Output()
+	//cprev := exec.Command("ffmpeg", "-i", path, "-an", "-ss", "00:00:00", "-an", "-r", "1", "-vframes", "1", "-s", "720x480", "-aspect", "16:9", preview)
+	//fmt.Println(c1080)
 }
 func getResolution(file string) float64 {
 	output, _ := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", file).Output()
@@ -138,6 +148,12 @@ func getResolution(file string) float64 {
 	ffprobeParsed, _ := jsonParsed.Path("streams").Children()
 	children, _ := ffprobeParsed[0].ChildrenMap()
 	height := children["height"].Data().(float64)
+	durationCmd, err := exec.Command("bash", "durationBash", file).Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(string(durationCmd), err)
+	fmt.Println(string(output))
 	return height
 }
 func exists(path string) bool {
