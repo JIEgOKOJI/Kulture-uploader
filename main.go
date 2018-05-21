@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/Jeffail/gabs"
@@ -57,7 +58,8 @@ func upload(c echo.Context) error {
 	path480 := string(ss[0] + ".480p.mp4")
 	path360 := string(ss[0] + ".360p.mp4")
 	previewfile := string(previewpath + s[0] + ".png")
-	SourceHeight := getResolution(path + file.Filename)
+	SourceHeight, SourceFrames := getResolution(path + file.Filename)
+	fmt.Println(SourceFrames)
 	var qualities int
 	switch {
 	case SourceHeight >= 1080:
@@ -141,7 +143,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 	//cprev := exec.Command("ffmpeg", "-i", path, "-an", "-ss", "00:00:00", "-an", "-r", "1", "-vframes", "1", "-s", "720x480", "-aspect", "16:9", preview)
 	//fmt.Println(c1080)
 }
-func getResolution(file string) float64 {
+func getResolution(file string) (float64, int) {
 	output, _ := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", file).Output()
 	var jsonParsed *gabs.Container
 	jsonParsed, _ = gabs.ParseJSON(output)
@@ -152,9 +154,10 @@ func getResolution(file string) float64 {
 	if err != nil {
 		fmt.Println(err)
 	}
+	duration, _ := strconv.Atoi((string(durationCmd)))
 	fmt.Println(string(durationCmd), err)
 	fmt.Println(string(output))
-	return height
+	return height, duration
 }
 func exists(path string) bool {
 	_, err := os.Stat(path)

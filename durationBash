@@ -5,5 +5,5 @@ hours=( $(echo $duration | cut -d":" -f1) )
 minutes=( $(echo $duration | cut -d":" -f2) )
 seconds=( $(echo $duration | cut -d":" -f3) )
 frames=( $(echo "($hours*3600+$minutes*60+$seconds)*$fps" | bc | cut -d"." -f1) )
-c=$(printf \\$(printf '%03o' $frames))
+c=$(printf $frames)
 printf $c
