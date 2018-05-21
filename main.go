@@ -17,6 +17,10 @@ import (
 	"github.com/labstack/echo/middleware"
 )
 
+func getVideoProgress(c echo.Context) error {
+	//todo VideoEncoding progress
+	return nil
+}
 func upload(c echo.Context) error {
 
 	//-----------
