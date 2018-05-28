@@ -61,10 +61,11 @@ func upload(c echo.Context) error {
 	path720 := string(ss[0] + ".720p.mp4")
 	path480 := string(ss[0] + ".480p.mp4")
 	path360 := string(ss[0] + ".360p.mp4")
-	previewfile := string(previewpath + s[0] + ".png")
+	//	previewfile := string(previewpath + s[0] + ".png")
 	SourceHeight, duration := getResolution(path + file.Filename)
 	var qualities int
 	playlists := make(map[string]string)
+	previews := make(map[int]string)
 	var manifest string
 	switch {
 	case SourceHeight >= 1080:
@@ -100,14 +101,18 @@ func upload(c echo.Context) error {
 		fmt.Print("less than, Will code in 1 qualities")
 
 	}
-	go transcode(path+file.Filename, qualities, path1080, path720, path480, path360, previewfile, path+"log", file.Filename, duration)
-	preview := "/previews/" + d[0] + "/" + d[0] + ".png"
+	go transcode(path+file.Filename, qualities, path1080, path720, path480, path360, previewpath, path+"log", file.Filename, duration)
+	i := 0
+	for i < 5 {
+		previews[i] = previewpath + strconv.Itoa(i) + ".png"
+		i++
+	}
 	jsonObj := gabs.New()
 	jsonObj.Set(true, "status")
 	jsonObj.Set(file.Filename, "name")
 	jsonObj.Set(manifest, "manifest")
 	jsonObj.Set(playlists, "playlists")
-	jsonObj.Set(preview, "preview")
+	jsonObj.Set(previews, "preview")
 	return c.HTML(http.StatusOK, fmt.Sprintf(jsonObj.String()))
 	/*} else {
 		jsonObj := gabs.New()
@@ -402,7 +407,16 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 	}
 	//genpreview
 	func() {
-
+		cprev, err := exec.Command("ffmpeg", "-y", "-i", path, "-an", "-ss", strconv.Itoa(duration-30), "-an", "-r", "1", "-vframes", "1", "-s", "960x540", "-aspect", "16:9", preview+"0.png").Output()
+		fmt.Println(cprev, err)
+		cprev, err = exec.Command("ffmpeg", "-y", "-i", path, "-an", "-ss", strconv.Itoa(duration/2), "-an", "-r", "1", "-vframes", "1", "-s", "960x540", "-aspect", "16:9", preview+"1.png").Output()
+		fmt.Println(cprev, err)
+		cprev, err = exec.Command("ffmpeg", "-y", "-i", path, "-an", "-ss", strconv.Itoa(duration/3), "-an", "-r", "1", "-vframes", "1", "-s", "960x540", "-aspect", "16:9", preview+"2.png").Output()
+		fmt.Println(cprev, err)
+		cprev, err = exec.Command("ffmpeg", "-y", "-i", path, "-an", "-ss", strconv.Itoa(duration/4), "-an", "-r", "1", "-vframes", "1", "-s", "960x540", "-aspect", "16:9", preview+"3.png").Output()
+		fmt.Println(cprev, err)
+		cprev, err = exec.Command("ffmpeg", "-y", "-i", path, "-an", "-ss", strconv.Itoa(30), "-an", "-r", "1", "-vframes", "1", "-s", "960x540", "-aspect", "16:9", preview+"4.png").Output()
+		fmt.Println(cprev, err)
 	}()
 	//removeSource
 	func() {
