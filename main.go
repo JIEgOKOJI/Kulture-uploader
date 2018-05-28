@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	//	"io/ioutil"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -62,8 +62,7 @@ func upload(c echo.Context) error {
 	path480 := string(ss[0] + ".480p.mp4")
 	path360 := string(ss[0] + ".360p.mp4")
 	previewfile := string(previewpath + s[0] + ".png")
-	SourceHeight, SourceFrames := getResolution(path + file.Filename)
-	fmt.Println(SourceFrames)
+	SourceHeight, duration := getResolution(path + file.Filename)
 	var qualities int
 	playlists := make(map[string]string)
 	var manifest string
@@ -101,7 +100,7 @@ func upload(c echo.Context) error {
 		fmt.Print("less than, Will code in 1 qualities")
 
 	}
-	go transcode(path+file.Filename, qualities, path1080, path720, path480, path360, previewfile)
+	go transcode(path+file.Filename, qualities, path1080, path720, path480, path360, previewfile, path+"log", file.Filename, duration)
 	preview := "/previews/" + d[0] + "/" + d[0] + ".png"
 	jsonObj := gabs.New()
 	jsonObj.Set(true, "status")
@@ -117,13 +116,13 @@ func upload(c echo.Context) error {
 	}*/
 
 }
-func transcode(path string, qualities int, path1080 string, path720 string, path480 string, path360 string, preview string) {
+func transcode(path string, qualities int, path1080 string, path720 string, path480 string, path360 string, preview string, logpath string, name string, duration int) {
 	fmt.Println(path, preview)
 	switch qualities {
 	case 4:
 		//transcode 1080
 		func() {
-			writePrgoress(4, 0, path)
+			writePrgoress(4, 0, logpath, name)
 			var stdoutBuf bytes.Buffer
 			var errStdout, errStderr error
 			c1080 := exec.Command("ffmpeg", "-y", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "384k", "-b:v", "8000k", "-preset:v", "veryfast", "-s", "1920x1080", "-aspect", "16:9", "-f", "mp4", path1080)
@@ -135,7 +134,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
 			go func() {
-				f, _ := os.Create(path1080 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".1080.log")
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -147,7 +146,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(4, 1, path)
+			writePrgoress(4, 1, logpath, name)
 		}()
 		//transcode 720
 		func() {
@@ -162,7 +161,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
 			go func() {
-				f, _ := os.Create(path720 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".720.log")
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -174,7 +173,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(4, 2, path)
+			writePrgoress(4, 2, logpath, name)
 		}()
 		//transcode 480
 		func() {
@@ -189,7 +188,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
 			go func() {
-				f, _ := os.Create(path480 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".480.log")
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -201,7 +200,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(4, 3, path)
+			writePrgoress(4, 3, logpath, name)
 		}()
 		//transcode 360
 		func() {
@@ -216,7 +215,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
 			go func() {
-				f, _ := os.Create(path360 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".360.log")
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -228,12 +227,12 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(4, 4, path)
+			writePrgoress(4, 4, logpath, name)
 		}()
 	case 3:
 		//transcode 720
 		func() {
-			writePrgoress(3, 0, path)
+			writePrgoress(3, 0, logpath, name)
 			var stdoutBuf bytes.Buffer
 			var errStdout, errStderr error
 			c720 := exec.Command("ffmpeg", "-y", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "384k", "-b:v", "5000k", "-preset:v", "veryfast", "-s", "1280x720", "-aspect", "16:9", "-f", "mp4", path720)
@@ -244,8 +243,10 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			go func() {
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
+			fmt.Println(logpath + "/" + name + ".720.log")
 			go func() {
-				f, _ := os.Create(path720 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".720.log")
+
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -257,7 +258,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(3, 1, path)
+			writePrgoress(3, 1, logpath, name)
 		}()
 		//transcode 480
 		func() {
@@ -272,7 +273,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
 			go func() {
-				f, _ := os.Create(path480 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".480.log")
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -284,7 +285,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(3, 2, path)
+			writePrgoress(3, 2, logpath, name)
 		}()
 		//transcode 360
 		func() {
@@ -299,7 +300,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
 			go func() {
-				f, _ := os.Create(path360 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".360.log")
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -311,12 +312,12 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(3, 3, path)
+			writePrgoress(3, 3, logpath, name)
 		}()
 	case 2:
 		//transcode 480
 		func() {
-			writePrgoress(2, 0, path)
+			writePrgoress(2, 0, logpath, name)
 			var stdoutBuf bytes.Buffer
 			var errStdout, errStderr error
 			c480 := exec.Command("ffmpeg", "-y", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "384k", "-b:v", "2500k", "-preset:v", "veryfast", "-s", "720x480", "-aspect", "16:9", "-f", "mp4", path480)
@@ -328,7 +329,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
 			go func() {
-				f, _ := os.Create(path480 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".480.log")
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -340,7 +341,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(2, 1, path)
+			writePrgoress(2, 1, logpath, name)
 		}()
 		//transcode 360
 		func() {
@@ -355,7 +356,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
 			go func() {
-				f, _ := os.Create(path360 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".360.log")
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -367,12 +368,12 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(2, 2, path)
+			writePrgoress(2, 2, logpath, name)
 		}()
 	case 1:
 		//transcode 360
 		func() {
-			writePrgoress(1, 0, path)
+			writePrgoress(1, 0, logpath, name)
 			var stdoutBuf bytes.Buffer
 			var errStdout, errStderr error
 			c360 := exec.Command("ffmpeg", "-y", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-b:a", "384k", "-b:v", "1000k", "-preset:v", "veryfast", "-s", "480x360", "-aspect", "16:9", "-f", "mp4", path360)
@@ -384,7 +385,7 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 				_, errStdout = io.Copy(stdout, stdoutIn)
 			}()
 			go func() {
-				f, _ := os.Create(path360 + ".log")
+				f, _ := os.Create(logpath + "/" + name + ".360.log")
 				w := io.Writer(f)
 				io.Copy(w, stderrIn)
 
@@ -396,15 +397,20 @@ func transcode(path string, qualities int, path1080 string, path720 string, path
 			if errStdout != nil || errStderr != nil {
 				fmt.Println("failed to capture stdout or stderr\n")
 			}
-			writePrgoress(1, 1, path)
+			writePrgoress(1, 1, logpath, name)
 		}()
 	}
 	//genpreview
 	func() {
 
 	}()
+	//removeSource
+	func() {
+		err := os.Remove(path)
+		fmt.Println(err)
+	}()
 }
-func writePrgoress(need int, done int, name string) {
+func writePrgoress(need int, done int, path string, name string) {
 	percentage := 100 / need
 	percentage = percentage * done
 	fmt.Println(percentage)
@@ -415,22 +421,23 @@ func writePrgoress(need int, done int, name string) {
 	jsonObj.Set(name, "filename")
 	jsonObj.Set(percentage, "done")
 	fmt.Println(jsonObj.String())
+	err := ioutil.WriteFile(path+"/done.log", jsonObj.Bytes(), 0644)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 func getResolution(file string) (float64, int) {
-	output, _ := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", file).Output()
+	output, _ := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,duration", "-of", "json", file).Output()
 	var jsonParsed *gabs.Container
 	jsonParsed, _ = gabs.ParseJSON(output)
 	ffprobeParsed, _ := jsonParsed.Path("streams").Children()
 	children, _ := ffprobeParsed[0].ChildrenMap()
 	height := children["height"].Data().(float64)
-	durationCmd, err := exec.Command("bash", "durationBash", file).Output()
-	if err != nil {
-		fmt.Println(err)
-	}
-	duration, _ := strconv.Atoi((string(durationCmd)))
-	fmt.Println(string(durationCmd), err)
-	fmt.Println(string(output))
-	return height, duration
+	duration := children["duration"].Data().(string)
+	d := strings.Split(duration, ".")
+	durationInt, err := strconv.Atoi(d[0])
+	fmt.Println(durationInt, err)
+	return height, durationInt
 }
 func exists(path string) bool {
 	_, err := os.Stat(path)
@@ -440,6 +447,7 @@ func exists(path string) bool {
 	}
 	if os.IsNotExist(err) {
 		fmt.Println("Making Dir: " + path)
+		os.MkdirAll(path+"/log", os.ModePerm)
 		merr := os.MkdirAll(path, os.ModePerm)
 		if merr != nil {
 			fmt.Println("Error making Dir: ", merr)
