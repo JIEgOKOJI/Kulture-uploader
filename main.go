@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -17,9 +18,92 @@ import (
 	"github.com/labstack/echo/middleware"
 )
 
+func getVideoSize(c echo.Context) error {
+	requestPath := strings.Split(c.Request().URL.String(), "/")
+	id := requestPath[2]
+	path := "/zfspool/video/" + id
+	ext := exists(path)
+	files, err := filepath.Glob(path + "/*.mp4")
+	if err != nil {
+		fmt.Println(err)
+	}
+	if ext {
+		filesArray := make(map[string]int64)
+		for _, value := range files {
+			file, err := os.Open(value)
+			if err != nil {
+				// handle the error here
+				return err
+			}
+			defer file.Close()
+
+			// get the file size
+			stat, err := file.Stat()
+			if err != nil {
+				return err
+			}
+			filename := strings.Split(value, "/")
+			fmt.Println("File", filename[4], "size is ", stat.Size())
+			filesArray[filename[4]] = stat.Size()
+
+		}
+		jsonObj := gabs.New()
+		jsonObj.Set(filesArray, "files")
+		return c.HTML(http.StatusOK, fmt.Sprintf(jsonObj.String()))
+	}
+	jsonObj := gabs.New()
+	jsonObj.Set("notfound", "files")
+	return c.HTML(http.StatusOK, fmt.Sprintf(jsonObj.String()))
+}
 func getVideoProgress(c echo.Context) error {
-	//todo VideoEncoding progress
+	requestPath := strings.Split(c.Request().URL.String(), "/")
+	id := requestPath[2]
+	path := "/zfspool/video/" + id + "/log"
+	ext := exists(path)
+	fmt.Println(path, ext)
+	if ext {
+		dat, err := ioutil.ReadFile(path + "/done.log")
+		if err == nil {
+			return c.HTML(http.StatusOK, fmt.Sprintf(string(dat)))
+		}
+
+	}
 	return nil
+}
+func uploadPreview(c echo.Context) error {
+	requestPath := strings.Split(c.Request().URL.String(), "/")
+	id := requestPath[2]
+	jsonObj := gabs.New()
+	jsonObj.Set(id, "name")
+	result := true
+	jsonObj.Set(result, "result")
+	file, err := c.FormFile("file")
+	if err != nil {
+		result = false
+		jsonObj.Set(result, "result")
+		return c.HTML(http.StatusOK, fmt.Sprintf(jsonObj.String()))
+	}
+	src, err := file.Open()
+	if err != nil {
+		result = false
+		jsonObj.Set(result, "result")
+		return c.HTML(http.StatusOK, fmt.Sprintf(jsonObj.String()))
+	}
+	defer src.Close()
+	path := "/zfspool/previews/" + id + "/"
+	dst, err := os.Create(path + "4.png")
+	if err != nil {
+		result = false
+		jsonObj.Set(result, "result")
+		return c.HTML(http.StatusOK, fmt.Sprintf(jsonObj.String()))
+	}
+	defer dst.Close()
+	if _, err = io.Copy(dst, src); err != nil {
+		result = false
+		jsonObj.Set(result, "result")
+		return c.HTML(http.StatusOK, fmt.Sprintf(jsonObj.String()))
+	}
+	return c.HTML(http.StatusOK, fmt.Sprintf(jsonObj.String()))
 }
 func upload(c echo.Context) error {
 
@@ -42,8 +126,8 @@ func upload(c echo.Context) error {
 	s := strings.Split(file.Filename, ".")
 	path := "/zfspool/video/" + s[0] + "/"
 	previewpath := "/zfspool/previews/" + s[0] + "/"
-	/*ext :=*/ exists(path)
-	exists(previewpath)
+	/*ext :=*/ existsAndMake(path)
+	existsAndMake(previewpath)
 	//if !ext {
 	dst, err := os.Create(path + file.Filename)
 	if err != nil {
@@ -428,12 +512,18 @@ func writePrgoress(need int, done int, path string, name string) {
 	percentage := 100 / need
 	percentage = percentage * done
 	fmt.Println(percentage)
+	jsonObj := gabs.New()
+	jsonObj.Set("inprogress", "status")
 	if percentage == 99 {
 		percentage = 100
+		jsonObj.Set("success", "status")
 	}
-	jsonObj := gabs.New()
+	if percentage == 100 {
+		jsonObj.Set("success", "status")
+	}
 	jsonObj.Set(name, "filename")
 	jsonObj.Set(percentage, "done")
+
 	fmt.Println(jsonObj.String())
 	err := ioutil.WriteFile(path+"/done.log", jsonObj.Bytes(), 0644)
 	if err != nil {
@@ -453,7 +543,7 @@ func getResolution(file string) (float64, int) {
 	fmt.Println(durationInt, err)
 	return height, durationInt
 }
-func exists(path string) bool {
+func existsAndMake(path string) bool {
 	_, err := os.Stat(path)
 	if err == nil {
 		fmt.Println("Directory Exist")
@@ -471,6 +561,16 @@ func exists(path string) bool {
 	}
 	return true
 }
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		fmt.Println("Directory Exist")
+		return true
+	}
+
+	return false
+
+}
 func main() {
 	e := echo.New()
 
@@ -479,6 +579,10 @@ func main() {
 
 	e.Static("/", "public")
 	e.POST("/upload", upload)
+	e.POST("/uploadPreview/*", uploadPreview)
+	e.GET("/getVideoProgress/*", getVideoProgress)
+	e.GET("/getVideoSize/*", getVideoSize)
+	//e.GET("/uploadPreview", uploadPreview)
 
 	e.Logger.Fatal(e.Start(":1323"))
 }
