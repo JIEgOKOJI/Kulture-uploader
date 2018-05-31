@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -123,13 +124,18 @@ func upload(c echo.Context) error {
 	defer src.Close()
 
 	// Destination
+
 	s := strings.Split(file.Filename, ".")
-	path := "/zfspool/video/" + s[0] + "/"
-	previewpath := "/zfspool/previews/" + s[0] + "/"
-	/*ext :=*/ existsAndMake(path)
-	existsAndMake(previewpath)
+	idFileName := rand_str(8) + "." + s[1]
+	idFileNameOnly := strings.Split(idFileName, ".")
+	path := "/zfspool/video/" + idFileNameOnly[0] + "/"
+
+	/*ext :=*/
+	existsAndMake(path)
+
 	//if !ext {
-	dst, err := os.Create(path + file.Filename)
+
+	dst, err := os.Create(path + idFileName)
 	if err != nil {
 		return err
 	}
@@ -139,14 +145,16 @@ func upload(c echo.Context) error {
 	if _, err = io.Copy(dst, src); err != nil {
 		return err
 	}
-	ss := strings.Split(path+file.Filename, ".")
-	d := strings.Split(file.Filename, ".")
+	ss := strings.Split(path+idFileName, ".")
+	d := strings.Split(idFileName, ".")
+	previewpath := "/zfspool/previews/" + d[0] + "/"
+	existsAndMake(previewpath)
 	path1080 := string(ss[0] + ".1080p.mp4")
 	path720 := string(ss[0] + ".720p.mp4")
 	path480 := string(ss[0] + ".480p.mp4")
 	path360 := string(ss[0] + ".360p.mp4")
 	//	previewfile := string(previewpath + s[0] + ".png")
-	SourceHeight, duration := getResolution(path + file.Filename)
+	SourceHeight, duration := getResolution(path + idFileName)
 	var qualities int
 	playlists := make(map[string]string)
 	previews := make(map[int]string)
@@ -185,7 +193,7 @@ func upload(c echo.Context) error {
 		fmt.Print("less than, Will code in 1 qualities")
 
 	}
-	go transcode(path+file.Filename, qualities, path1080, path720, path480, path360, previewpath, path+"log", file.Filename, duration)
+	go transcode(path+idFileName, qualities, path1080, path720, path480, path360, previewpath, path+"log", idFileName, duration)
 	i := 0
 	for i < 5 {
 		previews[i] = previewpath + strconv.Itoa(i) + ".png"
@@ -570,6 +578,15 @@ func exists(path string) bool {
 
 	return false
 
+}
+func rand_str(str_size int) string {
+	alphanum := "0123456789abcdefghijklmnopqrstuvwxyz"
+	var bytes = make([]byte, str_size)
+	rand.Read(bytes)
+	for i, b := range bytes {
+		bytes[i] = alphanum[b%byte(len(alphanum))]
+	}
+	return string(bytes)
 }
 func main() {
 	e := echo.New()
