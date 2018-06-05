@@ -201,7 +201,7 @@ func upload(c echo.Context) error {
 	}
 	jsonObj := gabs.New()
 	jsonObj.Set(true, "status")
-	jsonObj.Set(file.Filename, "name")
+	jsonObj.Set(d[0], "name")
 	jsonObj.Set(manifest, "manifest")
 	jsonObj.Set(playlists, "playlists")
 	jsonObj.Set(previews, "preview")
